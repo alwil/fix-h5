@@ -8,10 +8,30 @@ def copy_h5_without_empty_datasets(source_path, dest_path):
             if 0 in obj.shape:
                 print(f"Skipping empty dataset: {name} (shape={obj.shape})")
                 return
-            dest_dataset = dest_file.create_dataset(name, data=obj[:])
+
+            # Preserve compression, chunking, and filter options
+            creation_args = {}
+            for attr in ['compression', 'compression_opts', 'shuffle', 'fletcher32', 'chunks']:
+                # Check both dataset attributes and properties
+                if hasattr(obj, attr):
+                    val = getattr(obj, attr)
+                    if val is not None:
+                        creation_args[attr] = val
+
+            # Use creation_args and preserve dtype
+            dest_dataset = dest_file.create_dataset(
+                name,
+                data=obj[:],
+                dtype=obj.dtype,
+                **creation_args
+            )
+
+            # Copy dataset attributes
             for key, val in obj.attrs.items():
                 dest_dataset.attrs[key] = val
-            print(f"Copied dataset: {name} (shape={obj.shape})")
+
+            print(f"Copied dataset: {name} (shape={obj.shape}, compression={creation_args.get('compression')})")
+
         elif isinstance(obj, h5py.Group):
             dest_file.require_group(name)
             for key, val in obj.attrs.items():
